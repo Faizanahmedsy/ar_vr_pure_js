@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webcam Effects with Wall Color Change</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="controls">
+        <button onclick="setFilter('none')">Normal</button>
+        <button onclick="setFilter('invert')">Invert</button>
+        <button onclick="setFilter('sepia')">Sepia</button>
+        <button onclick="setFilter('grayscale')">Grayscale</button>
+        <input type="color" id="wallColor" value="#87CEEB" onchange="updateWallColor(this.value)">
+        <label for="wallColor">Wall Color</label>
+    </div>
+
+    <script id="vertexShader" type="x-shader/x-vertex">
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    </script>
+
+    <script id="fragmentShader" type="x-shader/x-fragment">
+        uniform sampler2D tDiffuse;
+        uniform int filterType;
+        uniform vec3 wallColor;
+        uniform vec3 targetColor;
+        uniform float colorThreshold;
+        varying vec2 vUv;
+
+        void main() {
+            vec4 texel = texture2D(tDiffuse, vUv);
+            
+            // Wall color replacement
+            float colorDistance = distance(texel.rgb, targetColor);
+            if (colorDistance < colorThreshold) {
+                texel.rgb = wallColor;
+            }
+
+            // Other filters
+            if (filterType == 1) {  // Invert
+                gl_FragColor = vec4(1.0 - texel.rgb, texel.a);
+            } else if (filterType == 2) {  // Sepia
+                float r = texel.r * 0.393 + texel.g * 0.769 + texel.b * 0.189;
+                float g = texel.r * 0.349 + texel.g * 0.686 + texel.b * 0.168;
+                float b = texel.r * 0.272 + texel.g * 0.534 + texel.b * 0.131;
+                gl_FragColor = vec4(r, g, b, texel.a);
+            } else if (filterType == 3) {  // Grayscale
+                float gray = dot(texel.rgb, vec3(0.299, 0.587, 0.114));
+                gl_FragColor = vec4(vec3(gray), texel.a);
+            } else {  // Normal
+                gl_FragColor = texel;
+            }
+        }
+    </script>
+
+    <script>
+        let scene, camera, renderer, video, videoTexture, uniforms;
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            video = document.createElement('video');
+            video.autoplay = true;
+
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    video.srcObject = stream;
+                    video.play();
+                })
+                .catch(error => console.error('Error accessing the camera:', error));
+
+            videoTexture = new THREE.VideoTexture(video);
+
+            uniforms = {
+                tDiffuse: { value: videoTexture },
+                filterType: { value: 0 },
+                wallColor: { value: new THREE.Vector3(0.529, 0.808, 0.922) },  // Default sky blue
+                targetColor: { value: new THREE.Vector3(0.9, 0.9, 0.9) },  // Assuming light colored wall
+                colorThreshold: { value: 0.3 }
+            };
+
+            const material = new THREE.ShaderMaterial({
+                uniforms: uniforms,
+                vertexShader: document.getElementById('vertexShader').textContent,
+                fragmentShader: document.getElementById('fragmentShader').textContent
+            });
+
+            const plane = new THREE.PlaneGeometry(2, 2);
+            const quad = new THREE.Mesh(plane, material);
+            scene.add(quad);
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                videoTexture.needsUpdate = true;
+            }
+            renderer.render(scene, camera);
+        }
+
+        function setFilter(filter) {
+            switch (filter) {
+                case 'invert':
+                    uniforms.filterType.value = 1;
+                    break;
+                case 'sepia':
+                    uniforms.filterType.value = 2;
+                    break;
+                case 'grayscale':
+                    uniforms.filterType.value = 3;
+                    break;
+                default:
+                    uniforms.filterType.value = 0;
+            }
+        }
+
+        function updateWallColor(color) {
+            const r = parseInt(color.substr(1, 2), 16) / 255;
+            const g = parseInt(color.substr(3, 2), 16) / 255;
+            const b = parseInt(color.substr(5, 2), 16) / 255;
+            uniforms.wallColor.value = new THREE.Vector3(r, g, b);
+        }
+
+        window.addEventListener('resize', function () {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        init();
+    </script>
+</body>
+
+</html>

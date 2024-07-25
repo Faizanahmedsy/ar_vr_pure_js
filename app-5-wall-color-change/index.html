@@ -2,7 +2,7 @@
 <html>
 
 <head>
-    <title>AR Hand Detection: Place Virtual Object</title>
+    <title>AR Hand Detection: Place Virtual Object and Change Wall Color</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -36,6 +36,17 @@
             pointer-events: none;
             transform: translate(-50%, -50%);
         }
+
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+        }
     </style>
 </head>
 
@@ -43,12 +54,17 @@
     <video id="video" autoplay muted playsinline style="display:none;"></video>
     <canvas id="canvas"></canvas>
     <div id="virtualObject"></div>
+    <div id="controls">
+        <label for="wallColor">Wall Color:</label>
+        <input type="color" id="wallColor" value="#87CEEB">
+    </div>
 
     <script>
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const virtualObject = document.getElementById('virtualObject');
+        const wallColorPicker = document.getElementById('wallColor');
 
         function resizeCanvas() {
             canvas.width = window.innerWidth;
@@ -85,22 +101,20 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+            changeWallColor();
+
             if (results.multiHandLandmarks) {
                 for (const landmarks of results.multiHandLandmarks) {
-                    // Get the position of the index finger tip (landmark 8)
                     const indexTip = landmarks[8];
                     const x = indexTip.x * canvas.width;
                     const y = indexTip.y * canvas.height;
 
-                    // Place the virtual object on the index finger tip
                     placeObject(x, y);
 
-                    // Draw hand landmarks
                     drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 5 });
                     drawLandmarks(ctx, landmarks, { color: '#FF0000', lineWidth: 2 });
                 }
             } else {
-                // Hide the virtual object if no hand is detected
                 virtualObject.style.display = 'none';
             }
 
@@ -113,14 +127,51 @@
             virtualObject.style.top = y + 'px';
         }
 
-        // Helper functions for drawing (you might need to implement these or use a library)
+        function changeWallColor() {
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            const newColor = hexToRgb(wallColorPicker.value);
+
+            for (let i = 0; i < data.length; i += 4) {
+                // Define the color range for the wall (adjust these values as needed)
+                if (isWallColor(data[i], data[i + 1], data[i + 2])) {
+                    data[i] = newColor.r;
+                    data[i + 1] = newColor.g;
+                    data[i + 2] = newColor.b;
+                }
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        function isWallColor(r, g, b) {
+            // Define the color range for the wall (adjust these values as needed)
+            const threshold = 30;
+            const baseColor = { r: 200, g: 200, b: 200 }; // Assuming a light colored wall
+
+            return Math.abs(r - baseColor.r) < threshold &&
+                Math.abs(g - baseColor.g) < threshold &&
+                Math.abs(b - baseColor.b) < threshold;
+        }
+
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        }
+
         function drawConnectors(ctx, landmarks, connections, style) {
-            // Implementation for drawing connectors between landmarks
+            // Placeholder for drawing connectors
         }
 
         function drawLandmarks(ctx, landmarks, style) {
-            // Implementation for drawing landmarks
+            // Placeholder for drawing landmarks
         }
+
+        wallColorPicker.addEventListener('input', changeWallColor);
     </script>
 </body>
 
